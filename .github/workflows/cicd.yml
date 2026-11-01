@@ -39,7 +39,7 @@ jobs:
   # Job 1: 构建并推送镜像（在 GitHub 云端 runner 上执行）
   # ════════════════════════════════════════════════════════════════
   build-and-push:
-    runs-on: ubuntu-latest      # 使用 GitHub 提供的云端 Ubuntu 机器
+    runs-on: instabox-medium      # 使用 GitHub 提供的云端 Ubuntu 机器
     permissions:
       contents: read
       packages: write           # 推送 GHCR 镜像需要 write 权限
