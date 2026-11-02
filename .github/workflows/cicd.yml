@@ -36,10 +36,10 @@ permissions:
 
 jobs:
   # ════════════════════════════════════════════════════════════════
-  # Job 1: 构建并推送镜像（在 GitHub 云端 runner 上执行）
+  # Job 1: 构建并推送镜像（在 Instabox 上执行）
   # ════════════════════════════════════════════════════════════════
   build-and-push:
-    runs-on: instabox-medium      # 使用 Instabox 机器
+    runs-on: instabox-medium
     permissions:
       contents: read
       packages: write           # 推送 GHCR 镜像需要 write 权限
@@ -128,17 +128,17 @@ jobs:
           tags: ${{ steps.meta.outputs.web_tags }}    # 支持多 tag（tag 触发时含 :latest）
 
   # ════════════════════════════════════════════════════════════════
-  # Job 2: 部署到服务器（现在跑在 Instabox 临时实例上，仅调试使用）
+  # Job 2: 部署（Instabox临时调试，不使用/opt目录）
   # ════════════════════════════════════════════════════════════════
   # 仅在 workflow_dispatch 且勾选 deploy 开关时执行；
   # push tag 仅构建推送镜像，不自动部署，避免误推到生产/演示环境。
   deploy:
-    needs: [build-and-push]             # 等 Job 1 完成后才执行
+    needs: [build-and-push]
     if: github.event_name == 'workflow_dispatch' && inputs.deploy == true
-    runs-on: instabox-medium            # 修改点：使用 Instabox，不再依赖 self-hosted runner
+    runs-on: instabox-medium
     permissions:
       contents: read
-      packages: read                    # 拉取镜像只需 read 权限
+      packages: read
 
     steps:
       - name: Checkout code
@@ -164,46 +164,28 @@ jobs:
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      # ── 核心部署步骤（Docker Compose）──
-      #
-      # 流程：
-      #   1. 把仓库中的 docker-compose.yml 复制到服务器部署目录
-      #   2. 将本次构建的镜像标签写入 .env（Compose 通过 ${API_IMAGE} 变量引用）
-      #   3. docker compose pull 拉取最新镜像
-      #   4. docker compose up -d 自动停旧容器、启新容器
-      #
-      # 相比 bare docker run，Compose 的好处：
-      #   - 一个文件声明所有容器的配置（端口、网络、卷、环境变量）
-      #   - 一条命令启动/停止/重建所有容器
-      #   - 自动创建共享网络（容器间通过 service 名互访，无需手动 docker network create）
-      #
       - name: Deploy with Docker Compose
         shell: bash
         run: |
           set -euo pipefail
-          DEPLOY_DIR="/opt/orion-key"
+          DEPLOY_DIR="$HOME/orion-key"
           mkdir -p "$DEPLOY_DIR"
+          mkdir -p "$DEPLOY_DIR/uploads"
 
           # ① 将 docker-compose.yml 复制到部署目录（每次部署自动同步最新配置）
           cp docker-compose.yml "$DEPLOY_DIR/docker-compose.yml"
 
           # ② 更新 .env 中的镜像标签
-          #    先移除旧的 IMAGE 行，再追加新值
-          #    这样 docker-compose.yml 中的 ${API_IMAGE} 和 ${WEB_IMAGE} 就指向本次构建的镜像
           cd "$DEPLOY_DIR"
           sed -i '/^API_IMAGE=/d' .env 2>/dev/null || true
           sed -i '/^WEB_IMAGE=/d' .env 2>/dev/null || true
           echo "API_IMAGE=${{ steps.meta.outputs.api_image }}" >> .env
           echo "WEB_IMAGE=${{ steps.meta.outputs.web_image }}" >> .env
 
-          # ③ 拉取最新镜像 + 启动/重建容器
-          #    只 pull CI 构建的 api 和 web（来自 GHCR），不拉第三方镜像（如 bepusdt）
-          #    避免 Docker Hub 不可达时阻塞部署；bepusdt 更新按部署指南 §10.4 手动操作
-          #    up -d: 比较当前运行状态与 compose 配置，只重建有变化的容器
-          #    --remove-orphans: 清理不再定义的旧容器
+          # ③ 拉取镜像 + 启动容器，只拉 api web，跳过 bepusdt
           docker compose pull api web
           docker compose up -d --remove-orphans
 
-          # ④ 验证
+          # ④ 输出状态
           echo "Deployed with tag: ${{ steps.meta.outputs.tag }}"
           docker compose ps
