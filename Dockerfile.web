@@ -11,16 +11,11 @@
 #     Stage 2 (runner):  只复制编译产物，丢弃源码和开发依赖 → 体积小（~150MB）
 #   好处：最终镜像非常精简，减少安全攻击面和传输时间。
 #
-# 【修改说明】基础镜像切换为阿里云镜像 registry.aliyuncs.com
-# 规避 docker.io(Docker Hub) 429 Too Many Requests 限流问题
+# 【修改说明】使用官方 node:22-alpine，依靠Workflow登录DockerHub提升拉取配额，解决429限流
 # ===================================================================
 
 # ── Stage 1: 构建阶段 ──
-
-# FROM: 指定基础镜像
-#   registry.aliyuncs.com/library/node:22-alpine = 阿里云托管官方node镜像，不走docker.io，避开429限流
-#   AS builder = 给这个阶段取名叫 "builder"，后面可以用 --from=builder 引用它的产物
-FROM registry.aliyuncs.com/library/node:22-alpine AS builder
+FROM node:22-alpine AS builder
 
 # corepack 是 Node.js 内置的包管理器管理工具
 # 启用它才能使用 pnpm（本项目使用 pnpm 管理依赖）
@@ -61,7 +56,7 @@ RUN pnpm --filter @orion-key/web build
 # ── Stage 2: 运行阶段 ──
 
 # 从一个全新的基础镜像开始（不继承 Stage 1 的源码和 node_modules）
-FROM registry.aliyuncs.com/library/node:22-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 # 告诉 Node.js 以生产模式运行（禁用开发调试功能，优化性能）
