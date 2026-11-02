@@ -28,7 +28,7 @@ services:
   # ── 后端 API 容器 ──
   api:
     # 镜像地址（由 CI/CD 自动更新 .env 中的 API_IMAGE）
-    image: ${API_IMAGE:-ghcr.io/OWNER/orion-key-api:latest}
+    image: ${API_IMAGE:-ghcr.io/kinsonn/orion-key-api:latest}
 
     # 端口映射：宿主机端口:容器端口
     # 127.0.0.1 前缀 = 仅本机可访问（外部必须经过 Nginx，不会暴露到公网）
