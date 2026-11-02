@@ -53,7 +53,7 @@ services:
 
   # ── 前端 Web 容器 ──
   web:
-    image: ${WEB_IMAGE:-ghcr.io/OWNER/orion-key-web:latest}
+    image: ${WEB_IMAGE:-ghcr.io/kinsonn/orion-key-web:latest}
 
     ports:
       - "127.0.0.1:3000:3000"
